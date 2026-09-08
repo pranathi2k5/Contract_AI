@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ContractAI — Smart Contract Risk &amp; Compliance Assistant</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <section class="auth-screen" id="authScreen">
+        <div class="auth-panel">
+            <div class="auth-brand"><span class="logo-icon">⚖️</span> Contract<span class="gradient-text">AI</span></div>
+            <p class="auth-eyebrow">Private contract intelligence</p>
+            <h1 id="authTitle">Welcome back</h1>
+            <p class="auth-subtitle" id="authSubtitle">Sign in to continue to your workspace.</p>
+
+            <form id="authForm" class="auth-form">
+                <label for="authEmail">Email</label>
+                <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
+                <label for="authPassword">Password</label>
+                <input id="authPassword" type="password" autocomplete="current-password" placeholder="Enter your password" minlength="6" required>
+                <p class="auth-error" id="authError" role="alert"></p>
+                <button class="btn btn-primary auth-submit" type="submit" id="authSubmit">Sign in</button>
+            </form>
+
+            <p class="auth-switch">
+                <span id="authSwitchPrompt">New to ContractAI?</span>
+                <button type="button" class="text-button" id="authSwitch">Create account</button>
+            </p>
+        </div>
+    </section>
+
+    <div id="appShell" class="app-shell" hidden>
+    <!-- Top Navigation Header -->
+    <header class="navbar">
+        <div class="nav-container">
+            <div class="brand">
+                <span class="logo-icon">⚖️</span>
+                <span class="brand-name">Contract<span class="gradient-text">AI</span></span>
+                <span class="badge badge-beta">Enterprise v2.0</span>
+            </div>
+            
+            <nav class="nav-links">
+                <a href="#dashboard" class="nav-item active"><i class="fa-solid fa-chart-pie"></i> Dashboard</a>
+                <a href="#analysis" class="nav-item"><i class="fa-solid fa-file-contract"></i> Risk Clauses</a>
+                <a href="#missing" class="nav-item"><i class="fa-solid fa-triangle-exclamation"></i> Missing Clauses</a>
+                <a href="#laws" class="nav-item"><i class="fa-solid fa-scale-balanced"></i> Indian Laws</a>
+                <a href="#summary" class="nav-item"><i class="fa-solid fa-list-check"></i> Summary</a>
+            </nav>
+
+            <div class="nav-actions">
+                <!-- Role Toggle Selector -->
+                <div class="role-selector">
+                    <button class="role-btn active" id="roleReceiver" onclick="setRole('Receiver')">
+                        <i class="fa-solid fa-shield-halved"></i> Receiver
+                    </button>
+                    <button class="role-btn" id="roleSender" onclick="setRole('Sender')">
+                        <i class="fa-solid fa-paper-plane"></i> Sender
+                    </button>
+                </div>
+                <button class="btn btn-primary" onclick="openChatbot()" aria-label="Open assistant"><i class="fa-solid fa-robot"></i> Assistant</button>
+                <button class="icon-button" onclick="signOut()" aria-label="Sign out" title="Sign out"><i class="fa-solid fa-arrow-right-from-bracket"></i></button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="main-content">
+        <!-- Hero & Upload Section -->
+        <section class="hero-section">
+            <div class="hero-header">
+                <h1 class="hero-title">Smart Contract Risk &amp; Compliance Assistant</h1>
+                <p class="hero-subtitle">Scan contracts in seconds. Spot hidden risks, missing clauses, and relevant Indian laws before you sign.</p>
+            </div>
+
+            <div class="upload-card glass-card">
+                <div class="upload-controls">
+                    <div class="control-group">
+                        <label><i class="fa-solid fa-file-signature"></i> Contract Type</label>
+                        <select id="contractTypeSelect" class="form-select">
+                            <option value="NDA">Non-Disclosure Agreement (NDA)</option>
+                            <option value="Employment">Employment Agreement</option>
+                            <option value="Service">Service Level Agreement (SLA)</option>
+                            <option value="Sales">Sales & Vendor Agreement</option>
+                            <option value="Lease">Rental / Lease Agreement</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label><i class="fa-solid fa-user-tag"></i> Perspective Analysis</label>
+                        <select id="perspectiveSelect" class="form-select">
+                            <option value="Receiver">Protect Receiver (Employee/Client/Tenant)</option>
+                            <option value="Sender">Protect Sender (Employer/Vendor/Landlord)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Drag and Drop Dropzone -->
+                <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+                    <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg" style="display: none;" onchange="handleFileSelect(event)">
+                    <div class="dropzone-content">
+                        <div class="drop-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+                        <h3>Drag & drop your contract here, or <span class="highlight-text">browse files</span></h3>
+                        <p class="file-hint">Supports PDF, DOCX, TXT, PNG, and JPG files</p>
+                        <div id="selectedFileInfo" class="selected-file-info" style="display: none;">
+                            <i class="fa-solid fa-file-lines"></i> <span id="fileName">Sample_Employment_Contract.pdf</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="upload-actions">
+                    <button class="btn btn-hero-action" id="analyzeBtn" onclick="runAnalysis()">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Analyze
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadSampleContract('nda')">
+                        <i class="fa-solid fa-flask"></i> NDA sample
+                    </button>
+                    <button class="btn btn-secondary" onclick="loadSampleContract('employment')">
+                        <i class="fa-solid fa-building-user"></i> Employment sample
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Risk Dashboard Section -->
+        <section id="dashboard" class="dashboard-section">
+            <div class="section-header">
+                <h2><i class="fa-solid fa-gauge-high"></i> Contract Risk Dashboard</h2>
+                <div class="header-actions">
+                    <button class="btn btn-outline" onclick="downloadReport()"><i class="fa-solid fa-file-pdf"></i> PDF report</button>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Risk Gauge Score Card -->
+                <div class="dashboard-card glass-card score-card">
+                    <h3>Overall Contract Risk Gauge</h3>
+                    <div class="gauge-wrapper">
+                        <svg class="gauge-svg" viewBox="0 0 200 120">
+                            <path class="gauge-bg" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="18" stroke-linecap="round"/>
+                            <path class="gauge-fill" id="gaugePath" d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="url(#scoreGradient)" stroke-width="18" stroke-dasharray="251.2" stroke-dashoffset="75.36" stroke-linecap="round"/>
+                            <defs>
+                                <linearGradient id="scoreGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                    <stop offset="0%" stop-color="#00E676"/>
+                                    <stop offset="50%" stop-color="#FFD600"/>
+                                    <stop offset="100%" stop-color="#FF5252"/>
+                                </linearGradient>
+                            </defs>
+                        </svg>
+                        <div class="gauge-center">
+                            <span class="score-number" id="riskScoreValue">68</span>
+                            <span class="score-denom">/ 100</span>
+                            <div class="risk-badge badge-high" id="riskLevelBadge">HIGH RISK</div>
+                        </div>
+                    </div>
+                    <p class="score-description" id="scoreDescription">This agreement contains severe non-compete & unlimited liability indemnification clauses heavily favoring the Sender.</p>
+                </div>
+
+                <!-- Key Metrics Cards Grid -->
+                <div class="metrics-grid">
+                    <div class="metric-card glass-card">
+                        <div class="metric-icon icon-blue"><i class="fa-solid fa-list"></i></div>
+                        <div class="metric-info">
+                            <span class="metric-value" id="metricTotalClauses">24</span>
+                            <span class="metric-label">Clauses Evaluated</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card glass-card">
+                        <div class="metric-icon icon-red"><i class="fa-solid fa-circle-exclamation"></i></div>
+                        <div class="metric-info">
+                            <span class="metric-value" id="metricRiskyClauses">7</span>
+                            <span class="metric-label">Risky Clauses Flagged</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card glass-card">
+                        <div class="metric-icon icon-amber"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div class="metric-info">
+                            <span class="metric-value" id="metricMissingClauses">3</span>
+                            <span class="metric-label">Missing Key Clauses</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card glass-card">
+                        <div class="metric-icon icon-purple"><i class="fa-solid fa-gavel"></i></div>
+                        <div class="metric-info">
+                            <span class="metric-value" id="metricLawsMapped">5</span>
+                            <span class="metric-label">Indian Acts Mapped</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Risk Distribution Categories -->
+                <div class="dashboard-card glass-card categories-card">
+                    <h3>Risk Breakdown by Category</h3>
+                    <div class="category-list">
+                        <div class="category-item">
+                            <div class="cat-header">
+                                <span>Liability & Indemnity</span>
+                                <span class="cat-risk high">HIGH (85%)</span>
+                            </div>
+                            <div class="progress-bar"><div class="progress-fill bg-high" style="width: 85%;"></div></div>
+                        </div>
+
+                        <div class="category-item">
+                            <div class="cat-header">
+                                <span>Non-Compete & Restraint</span>
+                                <span class="cat-risk high">HIGH (90%)</span>
+                            </div>
+                            <div class="progress-bar"><div class="progress-fill bg-high" style="width: 90%;"></div></div>
+                        </div>
+
+                        <div class="category-item">
+                            <div class="cat-header">
+                                <span>Termination & Severance</span>
+                                <span class="cat-risk medium">MEDIUM (60%)</span>
+                            </div>
+                            <div class="progress-bar"><div class="progress-fill bg-medium" style="width: 60%;"></div></div>
+                        </div>
+
+                        <div class="category-item">
+                            <div class="cat-header">
+                                <span>Intellectual Property (IP)</span>
+                                <span class="cat-risk low">LOW (25%)</span>
+                            </div>
+                            <div class="progress-bar"><div class="progress-fill bg-low" style="width: 25%;"></div></div>
+                        </div>
+
+                        <div class="category-item">
+                            <div class="cat-header">
+                                <span>Dispute Resolution & Jurisdiction</span>
+                                <span class="cat-risk medium">MEDIUM (50%)</span>
+                            </div>
+                            <div class="progress-bar"><div class="progress-fill bg-medium" style="width: 50%;"></div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Detailed Results Tabs -->
+        <section id="analysis" class="details-section">
+            <div class="tabs-nav">
+                <button class="tab-btn active" onclick="switchTab('risksTab', this)"><i class="fa-solid fa-shield-cat"></i> Risky Clauses (<span id="risksCount">7</span>)</button>
+                <button class="tab-btn" onclick="switchTab('missingTab', this)"><i class="fa-solid fa-puzzle-piece"></i> Missing Clauses (<span id="missingCount">3</span>)</button>
+                <button class="tab-btn" onclick="switchTab('lawsTab', this)"><i class="fa-solid fa-building-columns"></i> Indian Law Mapping (<span id="lawsCount">5</span>)</button>
+                <button class="tab-btn" onclick="switchTab('summaryTab', this)"><i class="fa-solid fa-file-invoice"></i> Executive Summary</button>
+            </div>
+
+            <!-- Tab 1: Risky Clauses -->
+            <div id="risksTab" class="tab-content active">
+                <div class="clauses-container" id="clausesContainer">
+                    <!-- Cards rendered dynamically via app.js -->
+                </div>
+            </div>
+
+            <!-- Tab 2: Missing Clauses -->
+            <div id="missingTab" class="tab-content">
+                <div class="missing-grid" id="missingContainer">
+                    <!-- Rendered dynamically -->
+                </div>
+            </div>
+
+            <!-- Tab 3: Indian Law Mapping -->
+            <div id="lawsTab" class="tab-content">
+                <div class="laws-container" id="lawsContainer">
+                    <!-- Rendered dynamically -->
+                </div>
+            </div>
+
+            <!-- Tab 4: Executive Summary -->
+            <div id="summaryTab" class="tab-content">
+                <div class="glass-card summary-card" id="summaryContainer">
+                    <!-- Rendered dynamically -->
+                </div>
+            </div>
+        </section>
+
+        <section class="dashboard-disclaimer" aria-label="AI analysis disclaimer">
+            <strong>⚠ AI-Generated Analysis</strong>
+            <p>This analysis is for informational purposes only and is not a substitute for advice from a qualified legal professional. Verify applicable laws and recommendations before taking legal action.</p>
+        </section>
+    </main>
+
+    <!-- AI Legal Chatbot Drawer / Modal -->
+    <div class="chatbot-drawer" id="chatbotDrawer">
+        <div class="chat-header">
+            <div class="chat-title">
+                <i class="fa-solid fa-robot"></i>
+                <div>
+                    <h4>ContractAI Legal Assistant</h4>
+                    <span class="chat-subtitle">RAG-Powered Context Aware Assistant</span>
+                </div>
+            </div>
+            <button class="chat-close" onclick="closeChatbot()"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <div class="message assistant">
+                <div class="msg-avatar"><i class="fa-solid fa-scale-balanced"></i></div>
+                <div class="msg-body">
+                    Hello! I am your <strong>ContractAI Assistant</strong>. I have read the contract. Ask me any question regarding your obligations, Indian laws, or risk mitigations!
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-prompts">
+            <button class="prompt-chip" onclick="sendQuickPrompt('Is the Non-Compete clause valid under Section 27 of Indian Contract Act?')">Section 27 Non-Compete?</button>
+            <button class="prompt-chip" onclick="sendQuickPrompt('What is my total financial liability under this agreement?')">Financial Liability limit?</button>
+            <button class="prompt-chip" onclick="sendQuickPrompt('How can I negotiate the termination clause?')">Negotiate Termination?</button>
+        </div>
+
+        <div class="chat-input-area">
+            <input type="text" id="chatInput" placeholder="Ask a question about this contract..." onkeypress="handleChatKeyPress(event)">
+            <button class="btn btn-send" onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Main JavaScript App -->
+    <script src="app.js"></script>
+</body>
+</html>

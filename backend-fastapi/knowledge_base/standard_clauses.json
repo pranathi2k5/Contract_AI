@@ -1,0 +1,18 @@
+[
+    {
+        "clause_name": "Confidentiality",
+        "contract_type": "nda",
+        "is_mandatory": true,
+        "importance": "CRITICAL",
+        "template_text": "The Receiving Party shall keep confidential and shall not disclose to any third party any Confidential Information received from the Disclosing Party.",
+        "description": "Obligations to protect confidential information."
+    },
+    {
+        "clause_name": "Governing Law",
+        "contract_type": "sales",
+        "is_mandatory": true,
+        "importance": "CRITICAL",
+        "template_text": "This Agreement shall be governed by and construed in accordance with the laws of India.",
+        "description": "Specifies which jurisdiction laws govern the contract."
+    }
+]

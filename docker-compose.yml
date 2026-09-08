@@ -1,0 +1,90 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: contractai-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: contractai
+      POSTGRES_USER: contractai
+      POSTGRES_PASSWORD: contractai_secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./database/migrations/001_align_numeric_score_columns.sql:/docker-entrypoint-initdb.d/02-align-numeric-score-columns.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U contractai -d contractai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - contractai-network
+
+  # ChromaDB Vector Store
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: contractai-chromadb
+    ports:
+      - "8001:8000"
+    volumes:
+      - chromadata:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    networks:
+      - contractai-network
+
+  # Spring Boot Backend
+  springboot:
+    build:
+      context: ./backend-springboot
+      dockerfile: Dockerfile
+    container_name: contractai-springboot
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/contractai
+      SPRING_DATASOURCE_USERNAME: contractai
+      SPRING_DATASOURCE_PASSWORD: contractai_secret
+      FASTAPI_BASE_URL: http://fastapi:8000
+      JWT_SECRET: contractai-jwt-secret-key-2024-very-long-and-secure
+      JWT_EXPIRATION: 86400000
+    networks:
+      - contractai-network
+
+  # FastAPI AI/ML Backend
+  fastapi:
+    build:
+      context: ./backend-fastapi
+      dockerfile: Dockerfile
+    container_name: contractai-fastapi
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://contractai:contractai_secret@postgres:5432/contractai
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      MODEL_CACHE_DIR: /app/models
+    volumes:
+      - model_cache:/app/models
+      - contract_uploads:/app/uploads
+    networks:
+      - contractai-network
+
+volumes:
+  pgdata:
+  chromadata:
+  model_cache:
+  contract_uploads:
+
+networks:
+  contractai-network:
+    driver: bridge

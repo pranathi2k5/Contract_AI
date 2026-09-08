@@ -1,0 +1,8 @@
+{
+    "unlimited liability": {"category": "FINANCIAL", "severity": "CRITICAL"},
+    "irrevocable": {"category": "LEGAL", "severity": "HIGH"},
+    "waive all rights": {"category": "LEGAL", "severity": "CRITICAL"},
+    "indemnify harmless": {"category": "FINANCIAL", "severity": "MEDIUM"},
+    "liquidated damages": {"category": "FINANCIAL", "severity": "MEDIUM"},
+    "auto-renewal": {"category": "OPERATIONAL", "severity": "LOW"}
+}
