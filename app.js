@@ -3,7 +3,7 @@
    =   ========================================================================= */
 
 
-const FASTAPI_URL = (window.CONTRACTAI_API_URL || "http://localhost:8000").replace(/\/$/, "");
+const FASTAPI_URL = (window.CONTRACTAI_API_URL || "https://contract-ai-0kul.onrender.com/").replace(/\/$/, "");
 const SPRINGBOOT_URL = "http://localhost:8080";
 
 let selectedFile = null;

@@ -1,7 +1,23 @@
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.routers import analysis, chatbot, health
+
+
+configured_cors_origins = [
+    origin.strip().rstrip("/")
+    for origin in os.getenv("CORS_ORIGINS", "").split(",")
+    if origin.strip()
+]
+if "*" in configured_cors_origins:
+    raise ValueError("CORS_ORIGINS must list explicit origins; wildcard origins are not allowed.")
+
+CORS_ORIGINS = configured_cors_origins or [
+    "http://localhost:5500",
+    "http://127.0.0.1:5500",
+]
 
 
 @asynccontextmanager
@@ -14,7 +30,7 @@ app = FastAPI(title="ContractAI API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

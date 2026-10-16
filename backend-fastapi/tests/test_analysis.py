@@ -46,6 +46,30 @@ def test_health():
     assert response.json() == {"status": "ok"}
 
 
+def test_cors_allows_live_server_and_rejects_unconfigured_origins():
+    for origin in ("http://localhost:5500", "http://127.0.0.1:5500"):
+        allowed = client.options(
+            "/ai/analyze",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "POST",
+            },
+        )
+        assert allowed.status_code == 200
+        assert allowed.headers["access-control-allow-origin"] == origin
+
+    blocked = client.options(
+        "/ai/analyze",
+        headers={
+            "Origin": "https://unconfigured.example",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+
+    assert blocked.status_code == 400
+    assert "access-control-allow-origin" not in blocked.headers
+
+
 @pytest.mark.parametrize(
     ("severity", "expected_score"),
     [
