@@ -16,3 +16,12 @@ dist/
 build/
 
 *.log
+# Generated build files
+backend-springboot/target/
+# Nested duplicate project
+/ContractAI/
+# VS Code backup archives
+*.zip
+
+# Java build output
+backend-springboot/target/

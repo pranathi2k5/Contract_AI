@@ -3,11 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from app.routers import analysis, chatbot, health
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Models could be pre-loaded here
+    # Models are lazy-loaded on first use. LegalBERT stays unloaded unless ENABLE_LEGALBERT=true.
     yield
-    # Cleanup here if needed
+
 
 app = FastAPI(title="ContractAI API", lifespan=lifespan)
 

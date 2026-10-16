@@ -15,12 +15,28 @@ class MissingClauseDetector:
         if not self.templates:
             return []
             
-        contract_templates = [t for t in self.templates if t.get("contract_type") == contract_type]
+        wanted = (contract_type or "").strip().lower()
+        wanted = {
+            "nda": "nda",
+            "employee": "employment",
+            "employment": "employment",
+            "sla": "service",
+            "service": "service",
+            "sales": "sales",
+            "vendor": "sales",
+            "rental": "lease",
+            "rental/lease": "lease",
+            "lease": "lease",
+        }.get(wanted, wanted)
+        contract_templates = [
+            t for t in self.templates
+            if str(t.get("contract_type", "")).strip().lower() == wanted
+        ]
         extracted_texts = [c["clause_text"] for c in extracted_clauses]
-        
+
         missing = []
         for t in contract_templates:
-            matches = sbert_model.find_similar(t["template_text"], extracted_texts, threshold=0.65)
+            matches = sbert_model.find_similar(t["template_text"], extracted_texts, threshold=0.65) if extracted_texts else []
             if not matches:
                 missing.append({
                     "clause_name": t["clause_name"],

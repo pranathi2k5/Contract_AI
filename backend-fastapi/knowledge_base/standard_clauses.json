@@ -8,11 +8,75 @@
         "description": "Obligations to protect confidential information."
     },
     {
+        "clause_name": "Term of Confidentiality",
+        "contract_type": "nda",
+        "is_mandatory": true,
+        "importance": "HIGH",
+        "template_text": "Confidentiality obligations shall survive for a defined period after disclosure, except for trade secrets which remain protected while they qualify as trade secrets.",
+        "description": "Limits how long confidentiality duties last."
+    },
+    {
         "clause_name": "Governing Law",
         "contract_type": "sales",
         "is_mandatory": true,
         "importance": "CRITICAL",
         "template_text": "This Agreement shall be governed by and construed in accordance with the laws of India.",
         "description": "Specifies which jurisdiction laws govern the contract."
+    },
+    {
+        "clause_name": "Payment Terms",
+        "contract_type": "sales",
+        "is_mandatory": true,
+        "importance": "HIGH",
+        "template_text": "The Buyer shall pay invoices within the agreed number of days of receipt, and overdue amounts may accrue interest as permitted by law.",
+        "description": "Defines payment deadlines and remedies for late payment."
+    },
+    {
+        "clause_name": "Limitation of Liability",
+        "contract_type": "employment",
+        "is_mandatory": true,
+        "importance": "CRITICAL",
+        "template_text": "The Employee's aggregate liability under this Agreement shall be limited, except in cases of fraud or wilful misconduct.",
+        "description": "Caps employee personal financial exposure."
+    },
+    {
+        "clause_name": "Notice Period",
+        "contract_type": "employment",
+        "is_mandatory": true,
+        "importance": "HIGH",
+        "template_text": "Either party may terminate this Agreement by providing written notice or payment in lieu of notice on a reciprocal basis.",
+        "description": "Protects against abrupt termination without compensation."
+    },
+    {
+        "clause_name": "Service Levels",
+        "contract_type": "service",
+        "is_mandatory": true,
+        "importance": "HIGH",
+        "template_text": "The Provider shall meet the service levels, uptime commitments, and remedies described in this Agreement.",
+        "description": "Defines measurable performance obligations."
+    },
+    {
+        "clause_name": "Payment Schedule",
+        "contract_type": "service",
+        "is_mandatory": true,
+        "importance": "HIGH",
+        "template_text": "Fees are payable according to the schedule in this Agreement, and invoices shall specify due dates.",
+        "description": "Sets payment deadlines for services."
+    },
+    {
+        "clause_name": "Security Deposit",
+        "contract_type": "lease",
+        "is_mandatory": true,
+        "importance": "MEDIUM",
+        "template_text": "The Landlord shall hold any security deposit in accordance with applicable law and return it within the statutory period after deduction of documented dues.",
+        "description": "Protects deposit return obligations."
+    },
+    {
+        "clause_name": "Notice to Vacate",
+        "contract_type": "lease",
+        "is_mandatory": true,
+        "importance": "HIGH",
+        "template_text": "Either party shall provide written notice before termination or non-renewal of the lease in accordance with applicable rent laws.",
+        "description": "Requires advance notice before ending occupancy."
     }
 ]

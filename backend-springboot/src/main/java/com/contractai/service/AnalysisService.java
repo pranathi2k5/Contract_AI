@@ -32,25 +32,29 @@ public class AnalysisService {
         contract.setStatus("PROCESSING");
         contractRepository.save(contract);
 
-        // Dummy text extraction for now
-        String text = "Sample extracted contract text";
-        contract.setExtractedText(text);
-
         try {
-            Map<String, Object> aiResponse = aiServiceClient.analyzeContract(text, contract.getContractType(), contract.getUserRole());
-            
-            // In a real scenario, map the aiResponse fields to the models
+            Map<String, Object> aiResponse = aiServiceClient.analyzeContract(
+                    contract.getFilePath(),
+                    contract.getFileType(),
+                    contract.getContractType(),
+                    contract.getId().toString()
+            );
+
+            if (aiResponse.get("summary") != null) {
+                contract.setExtractedText(String.valueOf(aiResponse.get("summary")));
+            }
+
             AnalysisResult result = AnalysisResult.builder()
                     .contract(contract)
-                    .overallRiskScore(25.0)
-                    .riskLevel("LOW")
-                    .summary("Sample AI summary")
-                    .contractTypeDetected("NDA")
-                    .totalClausesFound(10)
-                    .riskyClausesCount(1)
-                    .missingClausesCount(0)
-                    .modelUsed("gpt-4")
-                    .processingTimeMs(2000)
+                    .overallRiskScore(toDouble(aiResponse.get("overall_risk_score"), 0.0))
+                    .riskLevel(stringOrDefault(aiResponse.get("risk_level"), "LOW"))
+                    .summary(stringOrDefault(aiResponse.get("summary"), ""))
+                    .contractTypeDetected(contract.getContractType())
+                    .totalClausesFound(toInt(aiResponse.get("total_clauses_found"), 0))
+                    .riskyClausesCount(toInt(aiResponse.get("risky_clauses_count"), 0))
+                    .missingClausesCount(toInt(aiResponse.get("missing_clauses_count"), 0))
+                    .modelUsed("sbert-minilm")
+                    .processingTimeMs(toInt(aiResponse.get("processing_time_ms"), 0))
                     .build();
             analysisResultRepository.save(result);
 
@@ -101,5 +105,27 @@ public class AnalysisService {
                 .missingClauses(analysis.getMissingClauses())
                 .summary(result.getSummary())
                 .build();
+    }
+
+    private double toDouble(Object value, double fallback) {
+        if (value instanceof Number) {
+            return ((Number) value).doubleValue();
+        }
+        if (value != null) {
+            try {
+                return Double.parseDouble(String.valueOf(value));
+            } catch (NumberFormatException ignored) {
+                return fallback;
+            }
+        }
+        return fallback;
+    }
+
+    private int toInt(Object value, int fallback) {
+        return (int) Math.round(toDouble(value, fallback));
+    }
+
+    private String stringOrDefault(Object value, String fallback) {
+        return value == null ? fallback : String.valueOf(value);
     }
 }

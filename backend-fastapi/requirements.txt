@@ -5,9 +5,8 @@ pydantic-settings
 sqlalchemy
 asyncpg
 greenlet
-transformers
-sentence-transformers
-torch
+sentence-transformers==3.3.1
+transformers==4.46.3
 chromadb
 langchain
 langchain-community
@@ -16,3 +15,4 @@ PyPDF2
 python-docx
 python-multipart
 Pillow
+PyMuPDF

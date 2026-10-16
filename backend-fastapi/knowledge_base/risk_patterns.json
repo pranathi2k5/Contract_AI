@@ -1,0 +1,106 @@
+[
+  {
+    "pattern": "The employee, tenant, customer, client, recipient, or receiving party must indemnify the employer, landlord, company, vendor, or disclosing party for all claims without a liability cap.",
+    "category": "INDEMNITY",
+    "risk_level": "CRITICAL",
+    "risk_to": "Receiver",
+    "explanation": "Broad indemnity obligations can expose the receiving party to claims beyond its control.",
+    "impact": "The Receiver may have to cover claims or losses even when they were not caused by the Receiver."
+  },
+  {
+    "pattern": "The employer, landlord, company, vendor, or disclosing party must indemnify the employee, tenant, customer, client, recipient, or receiving party for all claims.",
+    "category": "INDEMNITY",
+    "risk_level": "CRITICAL",
+    "risk_to": "Sender",
+    "explanation": "A broad indemnity obligation may expose the sending party to claims beyond its control.",
+    "impact": "The Sender may have to cover claims or losses even when they were not caused by the Sender."
+  },
+  {
+    "pattern": "The employee, tenant, customer, client, or receiving party accepts unlimited or uncapped liability for any loss or damage.",
+    "category": "FINANCIAL_LIABILITY",
+    "risk_level": "CRITICAL",
+    "risk_to": "Receiver",
+    "explanation": "Uncapped liability may create financial exposure disproportionate to the agreement.",
+    "impact": "The Receiver could face financial claims with no contractual cap."
+  },
+  {
+    "pattern": "The employer, landlord, company, vendor, or sending party accepts unlimited or uncapped liability for any loss or damage.",
+    "category": "FINANCIAL_LIABILITY",
+    "risk_level": "CRITICAL",
+    "risk_to": "Sender",
+    "explanation": "Uncapped liability may create financial exposure disproportionate to the agreement.",
+    "impact": "The Sender could face financial claims with no contractual cap."
+  },
+  {
+    "pattern": "The employee or receiving party is prohibited from competing or soliciting customers after the agreement or employment ends.",
+    "category": "RESTRAINT",
+    "risk_level": "HIGH",
+    "risk_to": "Receiver",
+    "explanation": "Post-termination restrictions may limit the receiving party's future work or business activity.",
+    "impact": "The Receiver may be restricted from future work or soliciting customers after the agreement ends."
+  },
+  {
+    "pattern": "The employee or receiving party must assign all present and future inventions and intellectual property to the employer or disclosing party.",
+    "category": "INTELLECTUAL_PROPERTY",
+    "risk_level": "HIGH",
+    "risk_to": "Receiver",
+    "explanation": "A broad assignment may transfer intellectual property created outside the agreement's intended scope.",
+    "impact": "The Receiver may lose rights to inventions or intellectual property beyond the work covered by the agreement."
+  },
+  {
+    "pattern": "The employer or sending party may terminate the employee or receiving party immediately without notice, a cure period, or payment in lieu.",
+    "category": "TERMINATION",
+    "risk_level": "HIGH",
+    "risk_to": "Receiver",
+    "explanation": "Immediate termination without notice or a remedy may leave the receiving party without a reasonable transition.",
+    "impact": "The Receiver may lose the agreement or related protections without time to respond or transition."
+  },
+  {
+    "pattern": "The employee or receiving party may terminate the agreement immediately without notice, a cure period, or payment in lieu.",
+    "category": "TERMINATION",
+    "risk_level": "HIGH",
+    "risk_to": "Sender",
+    "explanation": "Immediate termination without notice may disrupt the sending party's ability to perform or transition.",
+    "impact": "The Sender may face sudden termination without time to complete work or transition services."
+  },
+  {
+    "pattern": "The customer, tenant, employee, or receiving party must pay disproportionate late fees, penalties, or liquidated damages.",
+    "category": "PAYMENT",
+    "risk_level": "HIGH",
+    "risk_to": "Receiver",
+    "explanation": "Disproportionate payment consequences may create avoidable financial exposure.",
+    "impact": "The Receiver may owe disproportionate penalties or damages for payment delays."
+  },
+  {
+    "pattern": "The vendor, landlord, employer, or sending party must pay disproportionate late fees, penalties, or liquidated damages.",
+    "category": "PAYMENT",
+    "risk_level": "HIGH",
+    "risk_to": "Sender",
+    "explanation": "Disproportionate payment consequences may create avoidable financial exposure.",
+    "impact": "The Sender may owe disproportionate penalties or damages for payment delays."
+  },
+  {
+    "pattern": "Confidentiality duties continue indefinitely for all information, without exceptions or an end date.",
+    "category": "CONFIDENTIALITY",
+    "risk_level": "MEDIUM",
+    "risk_to": "Both",
+    "explanation": "Indefinite duties without customary exceptions may impose ongoing obligations on either party.",
+    "impact": "The selected party may remain bound indefinitely, including for information that should be exempt."
+  },
+  {
+    "pattern": "The agreement automatically renews unless a party gives notice within a narrow cancellation window.",
+    "category": "RENEWAL",
+    "risk_level": "MEDIUM",
+    "risk_to": "Both",
+    "explanation": "Automatic renewal with a narrow opt-out window may extend obligations unexpectedly.",
+    "impact": "The selected party may be committed to another term if it misses the cancellation window."
+  },
+  {
+    "pattern": "One party may change the contract terms or fees at its sole discretion without the other party's consent.",
+    "category": "UNILATERAL_CHANGE",
+    "risk_level": "HIGH",
+    "risk_to": "Both",
+    "explanation": "Unilateral changes may materially alter either party's obligations without agreement.",
+    "impact": "The selected party may be bound by changes to fees or terms it did not approve."
+  }
+]

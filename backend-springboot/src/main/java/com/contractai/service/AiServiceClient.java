@@ -12,6 +12,20 @@ public class AiServiceClient {
 
     private final WebClient webClient;
 
+    public Map<String, Object> analyzeContract(String filePath, String fileType, String contractType, String contractId) {
+        return webClient.post()
+                .uri(uriBuilder -> uriBuilder
+                        .path("/ai/analyze")
+                        .queryParam("file_path", filePath)
+                        .queryParam("file_type", fileType != null ? fileType : "PDF")
+                        .queryParam("contract_type", contractType != null ? contractType : "unknown")
+                        .queryParam("contract_id", contractId)
+                        .build())
+                .retrieve()
+                .bodyToMono(Map.class)
+                .block();
+    }
+
     public Map<String, Object> analyzeContract(String contractText, String contractType, String userRole) {
         return webClient.post()
                 .uri("/ai/analyze")

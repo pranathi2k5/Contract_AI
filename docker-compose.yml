@@ -73,6 +73,10 @@ services:
       CHROMA_PORT: 8000
       OLLAMA_BASE_URL: http://host.docker.internal:11434
       MODEL_CACHE_DIR: /app/models
+      ENABLE_LEGALBERT: "false"
+      SBERT_MODEL: sentence-transformers/all-MiniLM-L6-v2
+      HF_HOME: /app/models
+      LEGALBERT_ENABLED: "false"
     volumes:
       - model_cache:/app/models
       - contract_uploads:/app/uploads

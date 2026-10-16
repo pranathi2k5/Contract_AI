@@ -6,11 +6,13 @@ router = APIRouter(prefix="/ai/chat", tags=["chat"])
 
 @router.post("/", response_model=ChatMessageResponse)
 async def chat(req: ChatMessageRequest):
-    # Retrieve context from DB/RAG
-    context = "Sample contract context here."
+    context = (
+        "No contract-specific context is available. Answer general legal questions only; "
+        "do not claim that a clause or fact appears in the user's contract."
+    )
     resp_text = chatbot_service.chat(context, req.message)
     return ChatMessageResponse(role="assistant", content=resp_text, sources=[])
 
 @router.get("/context/{contract_id}")
 async def get_context(contract_id: str):
-    return {"contract_id": contract_id, "context": "Retrieved contract context chunks"}
+    return {"contract_id": contract_id, "context": None, "available": False}
