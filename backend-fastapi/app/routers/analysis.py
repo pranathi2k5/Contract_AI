@@ -43,7 +43,11 @@ async def analyze_contract(
 
     try:
         with open(file_path, "wb") as buffer:
-            buffer.write(await file.read())
+            while True:
+                chunk = await file.read(1024 * 1024)
+                if not chunk:
+                    break
+                buffer.write(chunk)
 
         file_ext = os.path.splitext(safe_filename)[1].lower()
 

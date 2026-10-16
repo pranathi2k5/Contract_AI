@@ -1,8 +1,11 @@
 import json
+import os
 import sys
 from types import SimpleNamespace
 
 import pytest
+import requests
+from starlette.datastructures import UploadFile as StarletteUploadFile
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -68,6 +71,93 @@ def test_cors_allows_live_server_and_rejects_unconfigured_origins():
 
     assert blocked.status_code == 400
     assert "access-control-allow-origin" not in blocked.headers
+
+
+def test_upload_is_written_in_bounded_chunks(tmp_path, monkeypatch):
+    monkeypatch.setenv("CONTRACTAI_UPLOAD_DIR", str(tmp_path))
+    payload = b"x" * (2 * 1024 * 1024 + 17)
+    read_sizes = []
+    parsed_file_sizes = []
+    original_read = StarletteUploadFile.read
+
+    async def tracked_read(upload, size=-1):
+        read_sizes.append(size)
+        return await original_read(upload, size)
+
+    monkeypatch.setattr(StarletteUploadFile, "read", tracked_read)
+    monkeypatch.setattr(
+        analysis_router.document_parser,
+        "parse_document",
+        lambda path, file_type: parsed_file_sizes.append(os.path.getsize(path))
+        or "Agreement text.",
+    )
+    monkeypatch.setattr(analysis_router.clause_extractor, "extract_clauses", lambda text: [])
+    monkeypatch.setattr(analysis_router.missing_clause_detector, "detect", lambda *args: [])
+    monkeypatch.setattr(
+        analysis_router.risk_analyzer,
+        "analyze",
+        lambda *args, **kwargs: {
+            "overall_risk_score": 0,
+            "risk_level": "LOW",
+            "risk_clauses": [],
+            "sbert_ran": False,
+            "llm_ran": False,
+            "warnings": [],
+        },
+    )
+    monkeypatch.setattr(analysis_router.law_mapper, "map_laws", lambda clauses: [])
+    monkeypatch.setattr(analysis_router.summary_generator, "generate_summary", lambda text: "")
+
+    response = client.post(
+        "/ai/analyze",
+        data={
+            "contract_type": "Service",
+            "contract_id": "chunked-upload",
+            "user_type": "Receiver",
+        },
+        files={"file": ("agreement.txt", payload, "text/plain")},
+    )
+
+    assert response.status_code == 200
+    assert parsed_file_sizes == [len(payload)]
+    assert read_sizes == [1024 * 1024] * 4
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_chat_reports_unavailable_ollama_as_service_error(monkeypatch):
+    request_details = {}
+
+    def unavailable_ollama(url, **kwargs):
+        request_details.update(url=url, **kwargs)
+        raise requests.ConnectionError("connection refused")
+
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        unavailable_ollama,
+    )
+
+    response = client.post("/ai/chat/", json={"message": "Hello"})
+
+    assert response.status_code == 503
+    assert "OLLAMA_BASE_URL" in response.json()["detail"]
+    assert request_details["timeout"] == 15
+    assert request_details["url"].endswith("/api/generate")
+
+
+def test_chat_returns_a_valid_ollama_response(monkeypatch):
+    response_body = {"response": "Hello there."}
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        lambda *args, **kwargs: SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: response_body,
+        ),
+    )
+
+    response = client.post("/ai/chat/", json={"message": "Hello"})
+
+    assert response.status_code == 200
+    assert response.json()["content"] == "Hello there."
 
 
 @pytest.mark.parametrize(

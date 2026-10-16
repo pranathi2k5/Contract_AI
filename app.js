@@ -290,7 +290,7 @@ async function runAnalysis() {
     } catch (error) {
         console.error("Analysis error:", error);
         const message = error instanceof TypeError
-            ? `Cannot reach the analysis service at ${FASTAPI_URL}. Start the FastAPI backend (for example, run "docker compose up -d --build fastapi") and try again.`
+            ? `Cannot reach the analysis service at ${FASTAPI_URL}. Check the Render service status and confirm CORS allows this page's origin.`
             : error.message;
         setAnalysisStatus(`Analysis failed: ${message}`, "error");
 
@@ -570,7 +570,8 @@ async function sendChatMessage() {
         });
         
         if (!response.ok) {
-            throw new Error(`Assistant service returned HTTP ${response.status}.`);
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.detail || `Assistant service returned HTTP ${response.status}.`);
         }
         const data = await response.json();
         if (typeof data.content !== "string" || !data.content.trim()) {
