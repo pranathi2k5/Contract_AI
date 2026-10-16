@@ -94,7 +94,8 @@ async def analyze_contract(
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
-        laws = law_mapper.map_laws(clauses)
+        law_result = law_mapper.map_laws_with_status(clauses)
+        laws = law_result["matches"]
 
         summary = summary_generator.generate_summary(text)
         metrics = {
@@ -125,6 +126,7 @@ async def analyze_contract(
             "extracted_text": text,
             "overall_risk_score": risk_result["overall_risk_score"],
             "risk_level": risk_result["risk_level"],
+            "role_risk_scores": risk_result["role_risk_scores"],
             "summary": summary,
             "total_clauses_found": len(clauses),
             "risky_clauses_count": len(risk_result["risk_clauses"]),
@@ -132,6 +134,8 @@ async def analyze_contract(
             "risk_clauses": risk_result["risk_clauses"],
             "missing_clauses": missing,
             "applicable_laws": laws,
+            "legal_corpus_status": law_result["legal_corpus_status"],
+            "legal_disclaimer": law_result["legal_disclaimer"],
             "analysis_metrics": metrics,
             "processing_time_ms": int(
                 (time.time() - start_time) * 1000

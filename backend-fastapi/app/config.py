@@ -5,6 +5,13 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/contractai")
     CHROMA_PERSIST_DIRECTORY: str = "./chroma_db"
+    CHROMA_HOST: str = ""
+    CHROMA_PORT: int = 8000
+    INDIA_CODE_SOURCES_JSON: str = ""
+    LLM_PROVIDER: str = "gemini"
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+    LLM_TIMEOUT_SECONDS: int = 20
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     OLLAMA_MODEL: str = "llama3"
     # Lightweight sentence-transformer used for embeddings, RAG, similarity, and risk scoring.

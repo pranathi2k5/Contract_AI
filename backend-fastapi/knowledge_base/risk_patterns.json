@@ -102,5 +102,13 @@
     "risk_to": "Both",
     "explanation": "Unilateral changes may materially alter either party's obligations without agreement.",
     "impact": "The selected party may be bound by changes to fees or terms it did not approve."
+  },
+  {
+    "pattern": "Vague or undefined timing and subjective standards make a party's contractual duties uncertain.",
+    "category": "AMBIGUITY",
+    "risk_level": "MEDIUM",
+    "risk_to": "Both",
+    "explanation": "Unclear standards or timing can make performance expectations difficult to understand for either party.",
+    "impact": "Both parties may disagree about when or how an obligation must be performed."
   }
 ]

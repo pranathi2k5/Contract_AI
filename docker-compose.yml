@@ -71,7 +71,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://contractai:contractai_secret@postgres:5432/contractai
       CHROMA_HOST: chromadb
       CHROMA_PORT: 8000
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      INDIA_CODE_SOURCES_JSON: ${INDIA_CODE_SOURCES_JSON:-}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       MODEL_CACHE_DIR: /app/models
       ENABLE_LEGALBERT: "false"
       SBERT_MODEL: sentence-transformers/all-MiniLM-L6-v2

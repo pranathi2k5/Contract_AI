@@ -287,6 +287,11 @@
                         <div><span>Total clauses</span><strong id="supportTotalClauses">—</strong></div>
                         <div><span>Missing clauses</span><strong id="supportMissingClauses">—</strong></div>
                     </div>
+                    <div class="risk-supporting-metrics" aria-label="Risk exposure by contract party">
+                        <div><span>Sender exposure</span><strong id="senderRiskScore">—</strong></div>
+                        <div><span>Receiver exposure</span><strong id="receiverRiskScore">—</strong></div>
+                        <div><span>Selected perspective</span><strong id="selectedRiskRole">—</strong></div>
+                    </div>
                 </article>
 
                 <div class="overview-lower-grid">
@@ -315,6 +320,8 @@
                 </section>
                 <section class="results-subsection" id="lawsSection">
                     <div class="card-heading"><div><p class="section-kicker">Legal context</p><h3>Indian law mapping</h3></div><span class="tab-count" id="lawsCount">0</span></div>
+                    <p class="empty-inline" id="legalCorpusStatus" role="status"></p>
+                    <p class="legal-disclaimer" id="legalDisclaimer"></p>
                     <div class="laws-container" id="lawsContainer"></div>
                 </section>
             </div>

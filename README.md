@@ -16,7 +16,7 @@ An intelligent system for uploading, analyzing, and understanding legal contract
 - 🔍 **Missing Clause Detection** — SBERT cosine similarity against standard templates
 - ⚖️ **Indian Law Mapping** — Clause-level mapping to applicable Indian Acts & Sections
 - 📋 **PDF Report** — Downloadable comprehensive analysis report
-- 🤖 **Legal Chatbot** — RAG-powered context-aware legal assistant (Ollama local model)
+- 🤖 **Legal Chatbot** — Gemini API by default, grounded in the uploaded contract and retrieved legal sections; Ollama remains available for development
 
 ## Tech Stack
 
@@ -28,8 +28,8 @@ An intelligent system for uploading, analyzing, and understanding legal contract
 | Database | PostgreSQL 16 |
 | Vector Store | ChromaDB |
 | NLP Models | LegalBERT, SBERT |
-| RAG | LangChain + ChromaDB |
-| Chatbot LLM | Ollama (local) |
+| RAG | ChromaDB + shared SBERT embeddings |
+| Chatbot LLM | Gemini API (configurable); optional Ollama development provider |
 | OCR | Tesseract |
 | Containerization | Docker Compose |
 
@@ -82,3 +82,36 @@ Flutter App → Spring Boot (Auth + CRUD) → FastAPI (AI/ML)
                     ↓                          ↓
                PostgreSQL                  ChromaDB
 ```
+
+## FastAPI LLM and India Code corpus
+
+The chatbot uses the `gemini` provider by default. Configure `GEMINI_API_KEY` as a
+server-side environment variable; do not put it in `app.js` or other browser files.
+`GEMINI_MODEL` and `LLM_TIMEOUT_SECONDS` can be set to tune the model and request
+timeout. To use a developer's local Ollama instance instead, set
+`LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`. Missing keys, timeouts,
+and provider errors return HTTP 503 rather than a generated fallback.
+
+The India Code corpus is built only from configured HTTPS sources on
+`indiacode.nic.in`. Set `INDIA_CODE_SOURCES_JSON` to a JSON array of source records,
+each containing `act_name` and the official document `url`; add `version` and
+`effective_date` when verified in that source. Then, from `backend-fastapi`, run:
+
+```bash
+python -m app.services.rag_service --ingest
+```
+
+Ingestion is repeatable, stores sections with source/version metadata, and uses the
+same `SBERT_MODEL` for both stored and query embeddings. ChromaDB's local persistent
+directory is selected by `CHROMA_PERSIST_DIRECTORY`; on Render, attach a persistent
+disk and point this setting at its mount path (for example `/var/data/chroma_db`),
+then run the ingestion command from the Render shell after setting the sources.
+If using the Docker Compose Chroma service, `CHROMA_HOST` and `CHROMA_PORT` select it;
+the existing `chromadata` volume persists that collection. An empty or unavailable
+corpus is reported as such; there is no bundled legal-mapping fallback.
+
+Analysis returns the selected perspective score for compatibility and adds
+`role_risk_scores` with independent Sender and Receiver scores and clause-level
+contributions. Applicable-law records contain the retrieved statutory text and
+official source citation. Similarity is informational and does not determine
+applicability; all output is legal information, not legal advice.

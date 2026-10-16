@@ -328,7 +328,15 @@ function normalizeAnalysis(data) {
     }));
     const laws = (Array.isArray(data.applicable_laws) ? data.applicable_laws : []).map(law => ({
         act_name: law.act_name || law.law_name || "Applicable law",
-        section: law.section || law.section_title || law.section_number || "",
+        section: law.section || [
+            law.section_number ? `Section ${law.section_number}` : "",
+            law.section_title || ""
+        ].filter(Boolean).join(": ") || "",
+        section_number: law.section_number || "",
+        source_url: law.source_url || law.source || "",
+        retrieved_text: law.retrieved_text || "",
+        version: law.version || "",
+        effective_date: law.effective_date || "",
         applicability_reason: law.applicability_reason || law.reason || ""
     }));
     const clauses = Array.isArray(data.clauses)
@@ -348,6 +356,10 @@ function normalizeAnalysis(data) {
         risk_clauses: riskClauses,
         missing_clauses: missing,
         applicable_laws: laws,
+        legal_corpus_status: data.legal_corpus_status || { status: "unavailable" },
+        legal_disclaimer: data.legal_disclaimer || "",
+        role_risk_scores: data.role_risk_scores || {},
+        extracted_text: typeof data.extracted_text === "string" ? data.extracted_text : "",
         clauses,
         contract_id: data.contract_id || "",
         user_type: data.user_type || "",
@@ -388,6 +400,14 @@ function renderAnalysisResults(data, preserveActivePanel = false) {
     riskScale.setAttribute("aria-valuenow", String(score));
     riskScale.setAttribute("aria-valuetext", `${scoreDisplay} out of 100, ${level} risk`);
     document.getElementById("riskScaleMarker").style.left = `${score}%`;
+    for (const role of ["Sender", "Receiver"]) {
+        const roleResult = data.role_risk_scores[role];
+        document.getElementById(`${role.toLowerCase()}RiskScore`).textContent =
+            roleResult && Number.isFinite(Number(roleResult.overall_risk_score))
+                ? `${Number(roleResult.overall_risk_score)}/100 (${roleResult.risk_level || "UNKNOWN"})`
+                : "Not available";
+    }
+    document.getElementById("selectedRiskRole").textContent = data.user_type || "Not specified";
 
     const totals = {
         risk: data.risky_clauses_count,
@@ -450,13 +470,25 @@ function renderAnalysisResults(data, preserveActivePanel = false) {
 
     const lawsContainer = document.getElementById("lawsContainer");
     const laws = data.applicable_laws;
+    const corpusStatus = data.legal_corpus_status.status || "unavailable";
+    const corpusMessages = {
+        ready: "Official India Code sections were retrieved. Similarity is a research aid, not a legal applicability decision.",
+        empty: "The official legal corpus is empty. Configure India Code sources and run the ingestion command.",
+        unavailable: "The official legal corpus is currently unreachable; no legal mappings are available.",
+        no_relevant_match: "No retrieved India Code section met the relevance threshold for these clauses."
+    };
+    document.getElementById("legalCorpusStatus").textContent =
+        corpusMessages[corpusStatus] || "Legal corpus status is unavailable.";
+    document.getElementById("legalDisclaimer").textContent = data.legal_disclaimer;
     lawsContainer.innerHTML = laws.length ? laws.map(law => `
         <article class="law-card">
             <h4 class="law-act-title"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> ${escapeHtml(law.act_name)}</h4>
             ${law.section ? `<span class="law-section-badge">${escapeHtml(law.section)}</span>` : ""}
-            ${law.applicability_reason ? `<p class="law-desc">${escapeHtml(law.applicability_reason)}</p>` : ""}
+            ${law.applicability_reason ? `<p class="law-desc"><strong>Retrieval note:</strong> ${escapeHtml(law.applicability_reason)}</p>` : ""}
+            ${law.retrieved_text ? `<blockquote class="law-desc"><strong>Retrieved statutory text:</strong> ${escapeHtml(law.retrieved_text)}</blockquote>` : ""}
+            ${law.source_url ? `<p class="law-desc"><a href="${escapeHtml(law.source_url)}" target="_blank" rel="noopener noreferrer">Official source</a>${law.version ? ` · Version: ${escapeHtml(law.version)}` : ""}${law.effective_date ? ` · Effective date: ${escapeHtml(law.effective_date)}` : ""}</p>` : ""}
         </article>
-    `).join("") : `<p class="empty-inline">No mapped Indian laws were returned for this document.</p>`;
+    `).join("") : `<p class="empty-inline">${escapeHtml(corpusMessages[corpusStatus] || "No mapped Indian laws were returned for this document.")}</p>`;
 
     const processingTime = data.processing_time_ms === null ? "Not provided" : `${(data.processing_time_ms / 1000).toFixed(1)} sec`;
     document.getElementById("summaryContainer").innerHTML = `
@@ -544,11 +576,13 @@ async function sendChatMessage() {
     const messages = document.getElementById("chatMessages");
     
     // Append User Message
-    messages.innerHTML += `
-        <div class="message user">
-            <div class="msg-body">${text}</div>
-        </div>
-    `;
+    const userMessage = document.createElement("div");
+    userMessage.className = "message user";
+    const userBody = document.createElement("div");
+    userBody.className = "msg-body";
+    userBody.textContent = text;
+    userMessage.append(userBody);
+    messages.append(userMessage);
     input.value = "";
     messages.scrollTop = messages.scrollHeight;
 
@@ -566,7 +600,10 @@ async function sendChatMessage() {
         const response = await fetch(`${FASTAPI_URL}/ai/chat/`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: text })
+            body: JSON.stringify({
+                message: text,
+                contract_context: currentContractData?.extracted_text || ""
+            })
         });
         
         if (!response.ok) {
@@ -577,8 +614,15 @@ async function sendChatMessage() {
         if (typeof data.content !== "string" || !data.content.trim()) {
             throw new Error("Assistant service returned no answer.");
         }
-        const answer = data.content;
-        document.getElementById(typingId).querySelector(".msg-body").innerHTML = answer;
+        const citations = Array.isArray(data.sources) && data.sources.length
+            ? `\n\nRetrieved sources:\n${data.sources.map(source =>
+                `${source.act_name}, section ${source.section_number} (${source.source_url})` +
+                `${source.version ? ` · Version: ${source.version}` : ""}` +
+                `${source.effective_date ? ` · Effective: ${source.effective_date}` : ""}`
+            ).join("\n")}`
+            : "";
+        document.getElementById(typingId).querySelector(".msg-body").textContent =
+            `${data.content}${citations}`;
     } catch (error) {
         document.getElementById(typingId).querySelector(".msg-body").textContent =
             `Assistant unavailable: ${error.message || "No response was generated."}`;

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.services.risk_analyzer import RiskAnalyzer
 from app.services.chatbot_service import chatbot_service
+from app.services.rag_service import LEGAL_DISCLAIMER
 from app.ml.legalbert_model import get_legalbert_model
 from app.ml.sbert_model import SBERTModel, SBERTModelUnavailableError
 from app.config import settings
@@ -20,8 +21,16 @@ client = TestClient(app)
 
 
 @pytest.fixture(autouse=True)
-def disable_local_llm_during_tests(monkeypatch):
-    monkeypatch.setattr(chatbot_service, "generate", lambda *args, **kwargs: None)
+def isolate_legal_corpus_for_api_tests(monkeypatch):
+    monkeypatch.setattr(
+        analysis_router.law_mapper,
+        "map_laws_with_status",
+        lambda clauses: {
+            "matches": [],
+            "legal_corpus_status": {"status": "empty", "sections": 0},
+            "legal_disclaimer": LEGAL_DISCLAIMER,
+        },
+    )
 
 
 def _mock_receiver_risk_scores(analyzer, texts, concepts, sender_similarity=0.1):
@@ -100,6 +109,10 @@ def test_upload_is_written_in_bounded_chunks(tmp_path, monkeypatch):
             "overall_risk_score": 0,
             "risk_level": "LOW",
             "risk_clauses": [],
+            "role_risk_scores": {
+                "Sender": {"overall_risk_score": 0, "risk_level": "LOW", "contributions": []},
+                "Receiver": {"overall_risk_score": 0, "risk_level": "LOW", "contributions": []},
+            },
             "sbert_ran": False,
             "llm_ran": False,
             "warnings": [],
@@ -126,6 +139,8 @@ def test_upload_is_written_in_bounded_chunks(tmp_path, monkeypatch):
 
 def test_chat_reports_unavailable_ollama_as_service_error(monkeypatch):
     request_details = {}
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
+    monkeypatch.setattr(settings, "LLM_TIMEOUT_SECONDS", 15)
 
     def unavailable_ollama(url, **kwargs):
         request_details.update(url=url, **kwargs)
@@ -139,12 +154,13 @@ def test_chat_reports_unavailable_ollama_as_service_error(monkeypatch):
     response = client.post("/ai/chat/", json={"message": "Hello"})
 
     assert response.status_code == 503
-    assert "OLLAMA_BASE_URL" in response.json()["detail"]
+    assert "Ollama" in response.json()["detail"]
     assert request_details["timeout"] == 15
     assert request_details["url"].endswith("/api/generate")
 
 
 def test_chat_returns_a_valid_ollama_response(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "ollama")
     response_body = {"response": "Hello there."}
     monkeypatch.setattr(
         "app.services.chatbot_service.requests.post",
@@ -157,7 +173,95 @@ def test_chat_returns_a_valid_ollama_response(monkeypatch):
     response = client.post("/ai/chat/", json={"message": "Hello"})
 
     assert response.status_code == 200
-    assert response.json()["content"] == "Hello there."
+    assert response.json()["content"].startswith("Hello there.")
+    assert LEGAL_DISCLAIMER in response.json()["content"]
+    assert response.json()["role"] == "assistant"
+    assert response.json()["sources"] == []
+
+
+def test_chat_returns_gemini_response_with_contract_context_and_sources(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    posted = {}
+
+    def mock_retrieval(query):
+        assert query == "What is the notice period?"
+        return {
+            "status": "ready",
+            "matches": [{
+                "act_name": "Verified Act",
+                "section_number": "1",
+                "section_title": "Verified section",
+                "source_url": "https://www.indiacode.nic.in/verified.pdf",
+                "relevance_score": 0.8,
+                "retrieved_text": "Official section text.",
+            }],
+        }
+
+    def gemini_post(url, **kwargs):
+        posted.update(url=url, **kwargs)
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"candidates": [{
+                "content": {"parts": [{"text": "The supplied contract states 30 days."}]}
+            }]},
+        )
+
+    monkeypatch.setattr("app.routers.chatbot.rag_service.query", mock_retrieval)
+    monkeypatch.setattr("app.services.chatbot_service.requests.post", gemini_post)
+    response = client.post(
+        "/ai/chat/",
+        json={"message": "What is the notice period?", "contract_context": "Notice is 30 days."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["role"] == "assistant"
+    assert "30 days" in body["content"]
+    assert LEGAL_DISCLAIMER in body["content"]
+    assert body["sources"][0]["section_number"] == "1"
+    assert "Notice is 30 days." in posted["json"]["contents"][0]["parts"][0]["text"]
+    assert "Official section text." in posted["json"]["contents"][0]["parts"][0]["text"]
+    assert posted["params"] == {"key": "test-key"}
+
+
+def test_chat_fails_explicitly_when_gemini_key_is_missing(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
+
+    response = client.post("/ai/chat/", json={"message": "What does this contract say?"})
+
+    assert response.status_code == 503
+    assert "GEMINI_API_KEY" in response.json()["detail"]
+
+
+def test_chat_fails_explicitly_on_gemini_timeout(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(requests.Timeout()),
+    )
+
+    response = client.post("/ai/chat/", json={"message": "Question"})
+
+    assert response.status_code == 503
+    assert "timed out" in response.json()["detail"]
+
+
+def test_chat_reports_gemini_http_errors_without_exposing_api_key(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-secret")
+
+    def provider_failure(*args, **kwargs):
+        raise requests.HTTPError("provider request failed")
+
+    monkeypatch.setattr("app.services.chatbot_service.requests.post", provider_failure)
+    response = client.post("/ai/chat/", json={"message": "Question"})
+
+    assert response.status_code == 503
+    assert "Gemini" in response.json()["detail"]
+    assert "test-secret" not in response.text
 
 
 @pytest.mark.parametrize(
@@ -237,35 +341,24 @@ def test_empty_extraction_returns_a_neutral_score(monkeypatch):
     assert result["risk_clauses"] == []
 
 
-def test_llm_confidence_does_not_compress_a_confirmed_risk_score(monkeypatch):
+def test_risk_scores_are_derived_without_chat_provider_calls(monkeypatch):
     analyzer = RiskAnalyzer()
     monkeypatch.setattr(
         "app.services.risk_analyzer.sbert_model.semantic_scores",
         lambda texts, patterns: [[0.1] * len(patterns) for _ in texts],
     )
+    monkeypatch.setattr(
+        chatbot_service,
+        "generate",
+        lambda *args, **kwargs: pytest.fail("Risk scoring must not call the chatbot provider."),
+    )
+    result = analyzer.analyze(
+        [{"clause_text": "Invoices are settled as specified in the attached schedule."}],
+        user_type="Receiver",
+    )
 
-    def llm_response(confidence):
-        return lambda prompt, output_format=None: json.dumps({
-            "assessments": [{
-                "clause_index": 0,
-                "risk_category": "PAYMENT",
-                "risk_level": "HIGH",
-                "risk_to": "Receiver",
-                "confidence": confidence,
-                "rationale": "The payment obligation is one-sided.",
-            }]
-        })
-
-    clause = [{"clause_text": "Invoices are settled as specified in the attached schedule."}]
-    monkeypatch.setattr(chatbot_service, "generate", llm_response(0.2))
-    lower_confidence = analyzer.analyze(clause, user_type="Receiver")
-    monkeypatch.setattr(chatbot_service, "generate", llm_response(0.9))
-    higher_confidence = analyzer.analyze(clause, user_type="Receiver")
-
-    assert lower_confidence["llm_ran"] is True
-    assert higher_confidence["llm_ran"] is True
-    assert lower_confidence["overall_risk_score"] == 70.0
-    assert higher_confidence["overall_risk_score"] == 70.0
+    assert result["llm_ran"] is False
+    assert result["overall_risk_score"] == 0
 
 
 def test_legalbert_disabled_by_default():
@@ -444,6 +537,43 @@ def test_role_changes_score_for_obligations_assigned_to_that_party(monkeypatch):
     assert "risk_score" not in receiver_result["risk_clauses"][0]
     assert "cosine similarity" not in receiver_result["risk_clauses"][0]["explanation"].lower()
     assert not sender_result["risk_clauses"]
+    assert receiver_result["role_risk_scores"]["Receiver"]["overall_risk_score"] > (
+        receiver_result["role_risk_scores"]["Sender"]["overall_risk_score"]
+    )
+    assert receiver_result["role_risk_scores"]["Receiver"]["contributions"][0]["clause_text"]
+
+
+def test_balanced_clause_has_equal_sender_and_receiver_exposure(monkeypatch):
+    analyzer = RiskAnalyzer()
+    monkeypatch.setattr(
+        "app.services.risk_analyzer.sbert_model.semantic_scores",
+        lambda texts, patterns: [[0.1] * len(patterns) for _ in texts],
+    )
+    result = analyzer.analyze(
+        [{"clause_text": "Confidentiality duties continue indefinitely without exceptions."}],
+        user_type="Receiver",
+    )
+
+    assert result["role_risk_scores"]["Sender"]["overall_risk_score"] == 45.0
+    assert result["role_risk_scores"]["Receiver"]["overall_risk_score"] == 45.0
+    sender_contribution = result["role_risk_scores"]["Sender"]["contributions"][0]
+    receiver_contribution = result["role_risk_scores"]["Receiver"]["contributions"][0]
+    assert sender_contribution["category"] == receiver_contribution["category"]
+    assert sender_contribution["risk_level"] == receiver_contribution["risk_level"]
+    assert sender_contribution["contribution_score"] == receiver_contribution["contribution_score"]
+
+
+def test_missing_safeguard_contributes_to_both_roles():
+    result = RiskAnalyzer().analyze(
+        [],
+        missing_clauses=[{"clause_name": "Limitation of Liability", "importance": "HIGH"}],
+    )
+
+    for role in ("Sender", "Receiver"):
+        assert result["role_risk_scores"][role]["overall_risk_score"] == 70.0
+        assert result["role_risk_scores"][role]["contributions"][0]["contribution_type"] == (
+            "missing_safeguard"
+        )
 
 
 def test_opposite_party_similarity_does_not_create_false_role_risk(monkeypatch):
@@ -739,6 +869,11 @@ def test_upload_role_is_applied_to_same_contract(tmp_path, monkeypatch):
     assert results["Receiver"]["risk_clauses"] != results["Sender"]["risk_clauses"]
     assert results["Receiver"]["user_type"] == "Receiver"
     assert results["Sender"]["user_type"] == "Sender"
+    assert set(results["Receiver"]["role_risk_scores"]) == {"Sender", "Receiver"}
+    assert results["Receiver"]["overall_risk_score"] == (
+        results["Receiver"]["role_risk_scores"]["Receiver"]["overall_risk_score"]
+    )
+    assert results["Receiver"]["legal_corpus_status"]["status"] == "empty"
 
 
 def test_sbert_model_caches_static_pattern_embeddings(monkeypatch):

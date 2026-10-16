@@ -60,6 +60,7 @@ class FullAnalysisResponse(AnalysisResultBase):
 
 class ChatMessageRequest(BaseModel):
     message: str
+    contract_context: Optional[str] = None
 
 class ChatMessageResponse(BaseModel):
     role: str
