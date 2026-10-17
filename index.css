@@ -1429,7 +1429,27 @@ body:has(.auth-screen:not([hidden])) {
     .summary-heading { flex-direction: column; }
     .summary-metadata { grid-template-columns: minmax(0, 1fr); }
     .all-clause-item summary { gap: 9px; padding: 13px; }
-    .chatbot-drawer { inset: auto 12px 12px; width: auto; max-width: none; height: min(78vh, 580px); }
+}
+
+.chatbot-drawer {
+    right: 24px;
+    bottom: 24px;
+    min-width: min(300px, calc(100vw - 24px));
+    min-height: min(360px, calc(100vh - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    resize: both;
+    overflow: hidden;
+}
+
+.chat-header {
+    cursor: move;
+    touch-action: none;
+    user-select: none;
+}
+
+.chat-header button {
+    cursor: pointer;
 }
 
 /* Public landing page */

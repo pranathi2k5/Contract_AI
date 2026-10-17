@@ -10,6 +10,53 @@ let selectedFile = null;
 let currentContractData = null;
 let authMode = "login";
 
+function initializeChatbotPanel() {
+    const panel = document.getElementById("chatbotDrawer");
+    const handle = panel.querySelector(".chat-header");
+    let drag = null;
+
+    handle.addEventListener("pointerdown", event => {
+        if (event.button !== 0 || event.target.closest("button, input, textarea, select, a")) return;
+        const bounds = panel.getBoundingClientRect();
+        panel.style.left = `${bounds.left}px`;
+        panel.style.top = `${bounds.top}px`;
+        panel.style.right = "auto";
+        panel.style.bottom = "auto";
+        drag = {
+            pointerId: event.pointerId,
+            offsetX: event.clientX - bounds.left,
+            offsetY: event.clientY - bounds.top
+        };
+        handle.setPointerCapture(event.pointerId);
+        event.preventDefault();
+    });
+
+    window.addEventListener("pointermove", event => {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        const maxLeft = Math.max(0, window.innerWidth - panel.offsetWidth);
+        const maxTop = Math.max(0, window.innerHeight - panel.offsetHeight);
+        panel.style.left = `${Math.min(maxLeft, Math.max(0, event.clientX - drag.offsetX))}px`;
+        panel.style.top = `${Math.min(maxTop, Math.max(0, event.clientY - drag.offsetY))}px`;
+    });
+
+    window.addEventListener("pointerup", event => {
+        if (drag && event.pointerId === drag.pointerId) drag = null;
+        if (!panel.style.left || !panel.style.top) return;
+        const maxLeft = Math.max(0, window.innerWidth - panel.offsetWidth);
+        const maxTop = Math.max(0, window.innerHeight - panel.offsetHeight);
+        panel.style.left = `${Math.min(maxLeft, Math.max(0, panel.offsetLeft))}px`;
+        panel.style.top = `${Math.min(maxTop, Math.max(0, panel.offsetTop))}px`;
+    });
+
+    window.addEventListener("resize", () => {
+        if (!panel.style.left || !panel.style.top) return;
+        const maxLeft = Math.max(0, window.innerWidth - panel.offsetWidth);
+        const maxTop = Math.max(0, window.innerHeight - panel.offsetHeight);
+        panel.style.left = `${Math.min(maxLeft, Math.max(0, panel.offsetLeft))}px`;
+        panel.style.top = `${Math.min(maxTop, Math.max(0, panel.offsetTop))}px`;
+    });
+}
+
 // Initial Setup on Page Load
 document.addEventListener("DOMContentLoaded", () => {
     checkBackendHealth();
@@ -17,6 +64,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("authForm").addEventListener("submit", handleAuthSubmit);
     document.getElementById("authSwitch").addEventListener("click", toggleAuthMode);
     window.addEventListener("hashchange", handlePublicRoute);
+    initializeChatbotPanel();
     const resultTabs = [...document.querySelectorAll(".result-tab-button")];
     resultTabs.forEach((button, index) => {
         button.addEventListener("keydown", event => {
@@ -614,6 +662,10 @@ async function sendChatMessage() {
         if (typeof data.content !== "string" || !data.content.trim()) {
             throw new Error("Assistant service returned no answer.");
         }
+        const reply = data.content
+            .replace(/^(?:AI-generated explanation \(general legal information and\/or contract-specific analysis\):|General information \(local fallback\):)\s*/i, "")
+            .replace(/^(?:This is general information, not legal advice\.\s*)+/i, "")
+            .trim();
         const citations = Array.isArray(data.sources) && data.sources.length
             ? `\n\nRetrieved statutory evidence:\n${data.sources.map(source =>
                 `${source.act_name}, section ${source.section_number} (${source.source_url})` +
@@ -623,7 +675,7 @@ async function sendChatMessage() {
             ).join("\n")}`
             : "";
         document.getElementById(typingId).querySelector(".msg-body").textContent =
-            `${data.content}${citations}`;
+            `${reply}${citations}`;
     } catch (error) {
         document.getElementById(typingId).querySelector(".msg-body").textContent =
             `Assistant unavailable: ${error.message || "No response was generated."}`;

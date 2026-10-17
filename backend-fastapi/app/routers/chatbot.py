@@ -21,7 +21,7 @@ NON_COMPETE_DEFINITION = (
 
 def _is_simple_non_compete_definition(message):
     return bool(re.fullmatch(
-        r"\s*(?:what(?:'s|’s| is)\s+(?:a\s+)?|define\s+)(?:a\s+)?non[- ]compete[?.!]*\s*",
+        r"\s*(?:what(?:'s|s|â€™s| is)\s+(?:a\s+)?|define\s+)(?:a\s+)?non[- ]compete[?.!]*\s*",
         message,
         flags=re.IGNORECASE,
     ))
