@@ -87,8 +87,10 @@ Flutter App → Spring Boot (Auth + CRUD) → FastAPI (AI/ML)
 
 The chatbot uses the `gemini` provider by default. Configure `GEMINI_API_KEY` as a
 server-side environment variable; do not put it in `app.js` or other browser files.
-`GEMINI_MODEL` and `LLM_TIMEOUT_SECONDS` can be set to tune the model and request
-timeout. To use a developer's local Ollama instance instead, set
+`GEMINI_MODEL` defaults to `gemini-2.5-flash`, a text-generation model listed in the
+[Gemini API model catalog](https://ai.google.dev/gemini-api/docs/models). Set
+`GEMINI_MODEL` and `LLM_TIMEOUT_SECONDS` to configure the model and request timeout.
+To use a developer's local Ollama instance instead, set
 `LLM_PROVIDER=ollama`, `OLLAMA_BASE_URL`, and `OLLAMA_MODEL`. Missing keys, timeouts,
 and provider errors return HTTP 503 rather than a generated fallback.
 

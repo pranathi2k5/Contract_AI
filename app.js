@@ -615,10 +615,11 @@ async function sendChatMessage() {
             throw new Error("Assistant service returned no answer.");
         }
         const citations = Array.isArray(data.sources) && data.sources.length
-            ? `\n\nRetrieved sources:\n${data.sources.map(source =>
+            ? `\n\nRetrieved statutory evidence:\n${data.sources.map(source =>
                 `${source.act_name}, section ${source.section_number} (${source.source_url})` +
                 `${source.version ? ` · Version: ${source.version}` : ""}` +
-                `${source.effective_date ? ` · Effective: ${source.effective_date}` : ""}`
+                `${source.effective_date ? ` · Effective: ${source.effective_date}` : ""}` +
+                `\nRetrieved text: ${source.retrieved_text || "No statutory text supplied."}`
             ).join("\n")}`
             : "";
         document.getElementById(typingId).querySelector(".msg-body").textContent =

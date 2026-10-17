@@ -173,7 +173,7 @@ def test_chat_returns_a_valid_ollama_response(monkeypatch):
     response = client.post("/ai/chat/", json={"message": "Hello"})
 
     assert response.status_code == 200
-    assert response.json()["content"].startswith("Hello there.")
+    assert "Hello there." in response.json()["content"]
     assert LEGAL_DISCLAIMER in response.json()["content"]
     assert response.json()["role"] == "assistant"
     assert response.json()["sources"] == []
@@ -220,9 +220,139 @@ def test_chat_returns_gemini_response_with_contract_context_and_sources(monkeypa
     assert "30 days" in body["content"]
     assert LEGAL_DISCLAIMER in body["content"]
     assert body["sources"][0]["section_number"] == "1"
+    assert body["sources"][0]["retrieved_text"] == "Official section text."
     assert "Notice is 30 days." in posted["json"]["contents"][0]["parts"][0]["text"]
     assert "Official section text." in posted["json"]["contents"][0]["parts"][0]["text"]
-    assert posted["params"] == {"key": "test-key"}
+    assert posted["url"].endswith(
+        f"/models/{settings.GEMINI_MODEL}:generateContent"
+    )
+    assert posted["headers"] == {"x-goog-api-key": "test-key"}
+    assert "test-key" not in posted["url"]
+    assert "AI-generated explanation" in body["content"]
+    assert "Retrieved statutory evidence" in body["content"]
+
+
+def test_general_legal_question_is_answered_without_contract_or_rag(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    prompts = []
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "no_relevant_match", "matches": []},
+    )
+
+    def generate_general_answer(url, **kwargs):
+        prompts.append(kwargs["json"]["contents"][0]["parts"][0]["text"])
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"candidates": [{
+                "content": {"parts": [{
+                    "text": "A non-compete is a term restricting certain competitive work."
+                }]}
+            }]},
+        )
+
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        generate_general_answer,
+    )
+    response = client.post("/ai/chat/", json={"message": "What is a non-compete?"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "restricting certain competitive work" in body["content"]
+    assert "general" in prompts[0].lower()
+    assert "No contract provided." in prompts[0]
+    assert "No relevant legal section retrieved." in prompts[0]
+    assert "no relevant official india code passage" in body["content"].lower()
+    assert body["sources"] == []
+
+
+def test_contract_question_uses_uploaded_contract_when_no_law_is_retrieved(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    prompts = []
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+
+    def generate_contract_answer(url, **kwargs):
+        prompts.append(kwargs["json"]["contents"][0]["parts"][0]["text"])
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"candidates": [{
+                "content": {"parts": [{
+                    "text": "The supplied agreement says the notice period is 30 days."
+                }]}
+            }]},
+        )
+
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        generate_contract_answer,
+    )
+    response = client.post(
+        "/ai/chat/",
+        json={
+            "message": "What notice period does my contract specify?",
+            "contract_context": "The employee must give 30 days' written notice.",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "30 days" in response.json()["content"]
+    assert "The employee must give 30 days' written notice." in prompts[0]
+    assert "no relevant official india code passage" in response.json()["content"].lower()
+    assert response.json()["sources"] == []
+
+
+def test_chat_ignores_irrelevant_or_unverified_rag_results(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    prompts = []
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {
+            "status": "ready",
+            "matches": [
+                {
+                    "act_name": "Unverified source",
+                    "section_number": "1",
+                    "section_title": "Section title",
+                    "source_url": "https://example.com/fake",
+                    "relevance_score": 0.99,
+                    "retrieved_text": "Unverified legal text.",
+                },
+                {
+                    "act_name": "Verified Act",
+                    "section_number": "7",
+                    "section_title": "Relevant",
+                    "source_url": "https://www.indiacode.nic.in/act.pdf",
+                    "relevance_score": 0.2,
+                    "retrieved_text": "Low relevance text.",
+                },
+            ],
+        },
+    )
+
+    def generate_answer(url, **kwargs):
+        prompts.append(kwargs["json"]["contents"][0]["parts"][0]["text"])
+        return SimpleNamespace(
+            raise_for_status=lambda: None,
+            json=lambda: {"candidates": [{
+                "content": {"parts": [{"text": "Here is general information."}]}
+            }]},
+        )
+
+    monkeypatch.setattr("app.services.chatbot_service.requests.post", generate_answer)
+    response = client.post("/ai/chat/", json={"message": "What does this legal term mean?"})
+
+    assert response.status_code == 200
+    assert "Unverified legal text." not in prompts[0]
+    assert "Low relevance text." not in prompts[0]
+    assert response.json()["sources"] == []
+    assert "no relevant official india code passage" in response.json()["content"].lower()
 
 
 def test_chat_fails_explicitly_when_gemini_key_is_missing(monkeypatch):
@@ -249,19 +379,45 @@ def test_chat_fails_explicitly_on_gemini_timeout(monkeypatch):
     assert "timed out" in response.json()["detail"]
 
 
-def test_chat_reports_gemini_http_errors_without_exposing_api_key(monkeypatch):
+@pytest.mark.parametrize(
+    ("status_code", "error_body", "expected_detail"),
+    [
+        (
+            404,
+            {"error": {"message": "Model gemini-3.8-flash not found."}},
+            "model is unsupported",
+        ),
+        (
+            429,
+            {"error": {"status": "RESOURCE_EXHAUSTED", "message": "Quota exceeded."}},
+            "quota or rate limit",
+        ),
+        (
+            500,
+            {"error": {"message": "Internal server error."}},
+            "provider error",
+        ),
+    ],
+)
+def test_chat_reports_gemini_http_errors_without_exposing_api_key(
+    monkeypatch, caplog, status_code, error_body, expected_detail
+):
     monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-secret")
 
     def provider_failure(*args, **kwargs):
-        raise requests.HTTPError("provider request failed")
+        response = requests.Response()
+        response.status_code = status_code
+        response._content = json.dumps(error_body).encode()
+        raise requests.HTTPError(response=response)
 
     monkeypatch.setattr("app.services.chatbot_service.requests.post", provider_failure)
     response = client.post("/ai/chat/", json={"message": "Question"})
 
     assert response.status_code == 503
-    assert "Gemini" in response.json()["detail"]
+    assert expected_detail in response.json()["detail"]
     assert "test-secret" not in response.text
+    assert "test-secret" not in caplog.text
 
 
 @pytest.mark.parametrize(

@@ -74,6 +74,7 @@ services:
       INDIA_CODE_SOURCES_JSON: ${INDIA_CODE_SOURCES_JSON:-}
       LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       MODEL_CACHE_DIR: /app/models
       ENABLE_LEGALBERT: "false"
       SBERT_MODEL: sentence-transformers/all-MiniLM-L6-v2
