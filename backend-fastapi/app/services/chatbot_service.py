@@ -13,6 +13,7 @@ class ChatbotUnavailableError(RuntimeError):
 class ChatbotService:
     def generate(self, prompt, output_format=None):
         provider = settings.LLM_PROVIDER.strip().lower()
+
         if provider == "ollama":
             payload = {
                 "model": settings.OLLAMA_MODEL,
@@ -22,19 +23,24 @@ class ChatbotService:
             }
             if output_format:
                 payload["format"] = output_format
+
             url = f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/generate"
             request_kwargs = {"json": payload}
+
         elif provider == "gemini":
             if not settings.GEMINI_API_KEY.strip():
                 raise ChatbotUnavailableError(
                     "Gemini is selected but GEMINI_API_KEY is not configured."
                 )
+
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0},
             }
+
             if output_format == "json":
                 payload["generationConfig"]["responseMimeType"] = "application/json"
+
             url = (
                 "https://generativelanguage.googleapis.com/v1beta/models/"
                 f"{settings.GEMINI_MODEL}:generateContent"
@@ -43,6 +49,7 @@ class ChatbotService:
                 "params": {"key": settings.GEMINI_API_KEY},
                 "json": payload,
             }
+
         else:
             raise ChatbotUnavailableError(
                 "LLM_PROVIDER must be set to 'gemini' or 'ollama'."
@@ -56,16 +63,45 @@ class ChatbotService:
             )
             response.raise_for_status()
             response_body = response.json()
+
         except requests.Timeout as exc:
             logger.warning("%s request timed out.", provider)
             raise ChatbotUnavailableError(
                 f"{provider.title()} chat request timed out."
             ) from exc
-        except requests.RequestException as exc:
-            logger.warning("%s request failed (%s).", provider, type(exc).__name__)
+
+        except requests.HTTPError as exc:
+            status_code = (
+                exc.response.status_code
+                if exc.response is not None
+                else "unknown"
+            )
+            error_body = (
+                exc.response.text[:1000]
+                if exc.response is not None
+                else "No response body"
+            )
+            # Do not log request parameters: they contain the API key.
+            logger.error(
+                "%s HTTP error %s: %s",
+                provider,
+                status_code,
+                error_body,
+            )
             raise ChatbotUnavailableError(
                 f"{provider.title()} chat service is unavailable."
             ) from exc
+
+        except requests.RequestException as exc:
+            logger.warning(
+                "%s request failed (%s).",
+                provider,
+                type(exc).__name__,
+            )
+            raise ChatbotUnavailableError(
+                f"{provider.title()} chat service is unavailable."
+            ) from exc
+
         except ValueError as exc:
             logger.warning("%s returned invalid JSON.", provider)
             raise ChatbotUnavailableError(
@@ -73,24 +109,39 @@ class ChatbotService:
             ) from exc
 
         if provider == "ollama":
-            result = response_body.get("response") if isinstance(response_body, dict) else None
+            result = (
+                response_body.get("response")
+                if isinstance(response_body, dict)
+                else None
+            )
         else:
             result = None
+
             if isinstance(response_body, dict):
                 candidates = response_body.get("candidates")
+
                 if isinstance(candidates, list) and candidates:
                     content = candidates[0].get("content", {})
-                    parts = content.get("parts", []) if isinstance(content, dict) else []
+                    parts = (
+                        content.get("parts", [])
+                        if isinstance(content, dict)
+                        else []
+                    )
+
                     if isinstance(parts, list):
                         result = "\n".join(
-                            part["text"] for part in parts
-                            if isinstance(part, dict) and isinstance(part.get("text"), str)
+                            part["text"]
+                            for part in parts
+                            if isinstance(part, dict)
+                            and isinstance(part.get("text"), str)
                         )
+
         if not isinstance(result, str) or not result.strip():
             logger.warning("%s returned no generated text.", provider)
             raise ChatbotUnavailableError(
                 f"{provider.title()} returned no generated answer."
             )
+
         return result.strip()
 
     def chat(self, contract_context, legal_context, message):
@@ -103,10 +154,14 @@ class ChatbotService:
             "say that it is not stated in the available material. Clearly distinguish "
             "contract wording from retrieved legal text and do not present an explanation "
             "as quoted legislation.\n\n"
-            f"UPLOADED CONTRACT (may be empty):\n{contract_context or 'No contract provided.'}\n\n"
-            f"RETRIEVED LEGAL TEXT (may be empty):\n{legal_context or 'No relevant legal section retrieved.'}\n\n"
+            f"UPLOADED CONTRACT (may be empty):\n"
+            f"{contract_context or 'No contract provided.'}\n\n"
+            f"RETRIEVED LEGAL TEXT (may be empty):\n"
+            f"{legal_context or 'No relevant legal section retrieved.'}\n\n"
             f"QUESTION:\n{message}"
         )
+
         return self.generate(prompt)
+
 
 chatbot_service = ChatbotService()
