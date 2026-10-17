@@ -379,6 +379,27 @@ def test_chat_fails_explicitly_on_gemini_timeout(monkeypatch):
     assert "timed out" in response.json()["detail"]
 
 
+def test_non_compete_definition_falls_back_locally_on_gemini_timeout(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "no_relevant_match", "matches": []},
+    )
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(requests.Timeout()),
+    )
+
+    response = client.post("/ai/chat/", json={"message": "What's a non-compete?"})
+
+    assert response.status_code == 200
+    assert response.json()["sources"] == []
+    assert "General information (local fallback)" in response.json()["content"]
+    assert "A non-compete is a contract term" in response.json()["content"]
+    assert "depends on the jurisdiction and circumstances" in response.json()["content"]
+
+
 @pytest.mark.parametrize(
     ("status_code", "error_body", "expected_detail"),
     [

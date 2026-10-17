@@ -1,6 +1,8 @@
+import re
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException
+from app.config import settings
 from app.models.schemas import ChatMessageRequest, ChatMessageResponse
 from app.services.chatbot_service import ChatbotUnavailableError, chatbot_service
 from app.services.rag_service import LEGAL_DISCLAIMER, rag_service
@@ -8,6 +10,21 @@ from app.services.rag_service import LEGAL_DISCLAIMER, rag_service
 router = APIRouter(prefix="/ai/chat", tags=["chat"])
 MIN_LEGAL_RELEVANCE = 0.45
 OFFICIAL_INDIA_CODE_HOSTS = {"indiacode.nic.in", "www.indiacode.nic.in"}
+NON_COMPETE_DEFINITION = (
+    "A non-compete is a contract term that restricts someone from working for, "
+    "starting, or otherwise engaging with a competing business, often for a stated "
+    "time, place, or type of work. Whether a particular restriction is enforceable "
+    "depends on the jurisdiction and circumstances. This is general information, "
+    "not legal advice."
+)
+
+
+def _is_simple_non_compete_definition(message):
+    return bool(re.fullmatch(
+        r"\s*(?:what(?:'s|’s| is)\s+(?:a\s+)?|define\s+)(?:a\s+)?non[- ]compete[?.!]*\s*",
+        message,
+        flags=re.IGNORECASE,
+    ))
 
 
 def _verified_legal_matches(legal_result):
@@ -71,10 +88,20 @@ def chat(req: ChatMessageRequest):
         f"Retrieved statutory text:\n{match['retrieved_text']}"
         for match in legal_matches
     )
+    used_local_fallback = False
     try:
         resp_text = chatbot_service.chat(contract_context, legal_context, req.message)
     except ChatbotUnavailableError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        if (
+            settings.LLM_PROVIDER.strip().lower() == "gemini"
+            and not contract_context
+            and not legal_matches
+            and _is_simple_non_compete_definition(req.message)
+        ):
+            resp_text = NON_COMPETE_DEFINITION
+            used_local_fallback = True
+        else:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
     sources = [
         {
             "act_name": match["act_name"],
@@ -88,11 +115,15 @@ def chat(req: ChatMessageRequest):
         }
         for match in legal_matches
     ]
+    answer_label = (
+        "General information (local fallback):"
+        if used_local_fallback
+        else "AI-generated explanation (general legal information and/or contract-specific analysis):"
+    )
     return ChatMessageResponse(
         role="assistant",
         content=(
-            "AI-generated explanation (general legal information and/or contract-specific "
-            f"analysis):\n{resp_text}\n\n{_evidence_status(sources)}\n\n{LEGAL_DISCLAIMER}"
+            f"{answer_label}\n{resp_text}\n\n{_evidence_status(sources)}\n\n{LEGAL_DISCLAIMER}"
         ),
         sources=sources,
     )
