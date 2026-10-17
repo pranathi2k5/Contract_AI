@@ -173,8 +173,8 @@ def test_chat_returns_a_valid_ollama_response(monkeypatch):
     response = client.post("/ai/chat/", json={"message": "Hello"})
 
     assert response.status_code == 200
-    assert "Hello there." in response.json()["content"]
-    assert LEGAL_DISCLAIMER in response.json()["content"]
+    assert response.json()["content"] == "Hello there."
+    assert "legal information only" not in response.json()["content"].lower()
     assert response.json()["role"] == "assistant"
     assert response.json()["sources"] == []
 
@@ -217,8 +217,7 @@ def test_chat_returns_gemini_response_with_contract_context_and_sources(monkeypa
     assert response.status_code == 200
     body = response.json()
     assert body["role"] == "assistant"
-    assert "30 days" in body["content"]
-    assert LEGAL_DISCLAIMER in body["content"]
+    assert body["content"] == "The supplied contract states 30 days."
     assert body["sources"][0]["section_number"] == "1"
     assert body["sources"][0]["retrieved_text"] == "Official section text."
     assert "Notice is 30 days." in posted["json"]["contents"][0]["parts"][0]["text"]
@@ -228,8 +227,9 @@ def test_chat_returns_gemini_response_with_contract_context_and_sources(monkeypa
     )
     assert posted["headers"] == {"x-goog-api-key": "test-key"}
     assert "test-key" not in posted["url"]
-    assert "AI-generated explanation" in body["content"]
-    assert "Retrieved statutory evidence" in body["content"]
+    assert "AI-generated explanation" not in body["content"]
+    assert "Retrieved statutory evidence" not in body["content"]
+    assert "legal information only" not in body["content"].lower()
 
 
 def test_general_legal_question_is_answered_without_contract_or_rag(monkeypatch):
@@ -262,9 +262,11 @@ def test_general_legal_question_is_answered_without_contract_or_rag(monkeypatch)
     body = response.json()
     assert "restricting certain competitive work" in body["content"]
     assert "general" in prompts[0].lower()
-    assert "No contract provided." in prompts[0]
-    assert "No relevant legal section retrieved." in prompts[0]
-    assert "no relevant official india code passage" in body["content"].lower()
+    assert "CONTRACT TEXT:\nNone provided." in prompts[0]
+    assert "RETRIEVED LEGAL EVIDENCE:\nNone retrieved." in prompts[0]
+    assert body["content"] == (
+        "A non-compete is a term restricting certain competitive work."
+    )
     assert body["sources"] == []
 
 
@@ -301,9 +303,10 @@ def test_contract_question_uses_uploaded_contract_when_no_law_is_retrieved(monke
     )
 
     assert response.status_code == 200
-    assert "30 days" in response.json()["content"]
+    assert response.json()["content"] == (
+        "The supplied agreement says the notice period is 30 days."
+    )
     assert "The employee must give 30 days' written notice." in prompts[0]
-    assert "no relevant official india code passage" in response.json()["content"].lower()
     assert response.json()["sources"] == []
 
 
@@ -351,8 +354,8 @@ def test_chat_ignores_irrelevant_or_unverified_rag_results(monkeypatch):
     assert response.status_code == 200
     assert "Unverified legal text." not in prompts[0]
     assert "Low relevance text." not in prompts[0]
+    assert response.json()["content"] == "Here is general information."
     assert response.json()["sources"] == []
-    assert "no relevant official india code passage" in response.json()["content"].lower()
 
 
 def test_chat_fails_explicitly_when_gemini_key_is_missing(monkeypatch):
@@ -395,9 +398,9 @@ def test_non_compete_definition_falls_back_locally_on_gemini_timeout(monkeypatch
 
     assert response.status_code == 200
     assert response.json()["sources"] == []
-    assert "General information (local fallback)" in response.json()["content"]
     assert "A non-compete is a contract term" in response.json()["content"]
     assert "depends on the jurisdiction and circumstances" in response.json()["content"]
+    assert "not legal advice" not in response.json()["content"].lower()
 
 
 @pytest.mark.parametrize(
