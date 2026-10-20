@@ -310,6 +310,225 @@ def test_contract_question_uses_uploaded_contract_when_no_law_is_retrieved(monke
     assert response.json()["sources"] == []
 
 
+def test_financial_liability_timeout_uses_full_uploaded_contract_text(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+    posted_prompts = []
+
+    def timeout_after_capturing_prompt(url, **kwargs):
+        posted_prompts.append(kwargs["json"]["contents"][0]["parts"][0]["text"])
+        raise requests.Timeout()
+
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        timeout_after_capturing_prompt,
+    )
+    contract_text = (
+        "Background " * 2200
+        + "\n\nPayment: Client shall pay INR 10,000 upon execution.\n\n"
+        "Service fee: Client shall pay INR 2,000 per month for 12 months."
+    )
+    response = client.post(
+        "/ai/chat/",
+        json={
+            "message": "What is my total financial liability under this agreement?",
+            "contract_context": contract_text,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "INR 10,000 upon execution" in posted_prompts[0]
+    assert "INR 2,000 per month for 12 months" in posted_prompts[0]
+    assert "₹34,000" in response.json()["content"]
+    assert "Calculated total of the stated obligations identified" in response.json()["content"]
+    assert "may not represent the contract's complete liability" in response.json()["content"]
+    assert response.json()["sources"] == []
+
+
+def test_financial_liability_fallback_excludes_conditional_and_uncapped_amounts(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(requests.Timeout()),
+    )
+
+    response = client.post(
+        "/ai/chat/",
+        json={
+            "message": "What is my total financial liability under this agreement?",
+            "contract_context": (
+                "Setup fee: Client shall pay INR 10,000 upon execution.\n\n"
+                "Late payment: If payment is late, a penalty of INR 5,000 may be charged.\n\n"
+                "Indemnity: Client indemnifies Provider for all losses without limitation."
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    answer = response.json()["content"]
+    assert "₹10,000" in answer
+    assert "Conditional or capped amount" in answer
+    assert "not included in a fixed total: ₹5,000" in answer
+    assert "Uncapped or unlimited liability is mentioned" in answer
+    assert "Known fixed/stated subtotal: ₹10,000" in answer
+    assert "A complete total cannot be determined" in answer
+    assert "₹15,000" not in answer
+
+
+def test_recurring_payment_without_duration_is_not_added_to_total(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(requests.Timeout()),
+    )
+
+    response = client.post(
+        "/ai/chat/",
+        json={
+            "message": "What is my total financial liability under this agreement?",
+            "contract_context": "Service fee: Client shall pay INR 5,000 per month.",
+        },
+    )
+
+    assert response.status_code == 200
+    answer = response.json()["content"]
+    assert "₹5,000 per month" in answer
+    assert "duration is not clear, so it is not totaled" in answer
+    assert "Calculated total of the stated obligations identified" not in answer
+
+
+def test_contract_total_paid_in_installments_is_not_multiplied(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(requests.Timeout()),
+    )
+
+    response = client.post(
+        "/ai/chat/",
+        json={
+            "message": "What is my total financial liability under this agreement?",
+            "contract_context": (
+                "Contract price is INR 120,000, payable in monthly installments "
+                "over 12 months."
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    answer = response.json()["content"]
+    assert "Recurring payment terms are present" in answer
+    assert "₹1,440,000" not in answer
+    assert "Calculated total of the stated obligations identified" not in answer
+
+
+def test_financial_liability_falls_back_on_gemini_http_503(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+
+    def unavailable_provider(*args, **kwargs):
+        response = requests.Response()
+        response.status_code = 503
+        response._content = b'{"error":{"message":"Temporarily unavailable."}}'
+        raise requests.HTTPError(response=response)
+
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        unavailable_provider,
+    )
+    response = client.post(
+        "/ai/chat/",
+        json={
+            "message": "What is my total financial liability under this agreement?",
+            "contract_context": "Payment: Client shall pay USD 900 upon signing.",
+        },
+    )
+
+    assert response.status_code == 200
+    assert "$900" in response.json()["content"]
+
+
+@pytest.mark.parametrize("contract_context", [None, "", "   "])
+def test_financial_liability_without_contract_context_requests_upload(
+    monkeypatch, contract_context
+):
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+    response = client.post(
+        "/ai/chat/",
+        json={
+            "message": "What is my total financial liability under this agreement?",
+            "contract_context": contract_context,
+        },
+    )
+
+    assert response.status_code == 200
+    assert "upload or reselect the agreement" in response.json()["content"]
+    assert "financial liability" in response.json()["content"]
+
+
+def test_contract_question_without_context_requests_reselection(monkeypatch):
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "empty", "matches": []},
+    )
+
+    response = client.post(
+        "/ai/chat/",
+        json={"message": "What notice period does my agreement specify?"},
+    )
+
+    assert response.status_code == 200
+    assert "upload or reselect the agreement" in response.json()["content"]
+    assert "terms" in response.json()["content"]
+
+
+def test_employment_agreement_definition_falls_back_during_gemini_timeout(monkeypatch):
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
+    monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "app.routers.chatbot.rag_service.query",
+        lambda query: {"status": "no_relevant_match", "matches": []},
+    )
+    monkeypatch.setattr(
+        "app.services.chatbot_service.requests.post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(requests.Timeout()),
+    )
+
+    response = client.post(
+        "/ai/chat/",
+        json={"message": "What is an employment agreement?"},
+    )
+
+    assert response.status_code == 200
+    assert "between an employer and an employee" in response.json()["content"]
+
+
 def test_chat_ignores_irrelevant_or_unverified_rag_results(monkeypatch):
     monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "test-key")
@@ -362,7 +581,7 @@ def test_chat_fails_explicitly_when_gemini_key_is_missing(monkeypatch):
     monkeypatch.setattr(settings, "LLM_PROVIDER", "gemini")
     monkeypatch.setattr(settings, "GEMINI_API_KEY", "")
 
-    response = client.post("/ai/chat/", json={"message": "What does this contract say?"})
+    response = client.post("/ai/chat/", json={"message": "What is a non-disclosure agreement?"})
 
     assert response.status_code == 503
     assert "GEMINI_API_KEY" in response.json()["detail"]

@@ -308,10 +308,11 @@ async function runAnalysis() {
 
     const contractType =
         document.getElementById("contractTypeSelect").value;
+    const analysisFile = selectedFile;
 
     const formData = new FormData();
 
-    formData.append("file", selectedFile);
+    formData.append("file", analysisFile);
     formData.append("contract_type", contractType);
     formData.append("user_type", document.getElementById("perspectiveSelect").value);
     formData.append("contract_id", crypto.randomUUID());
@@ -327,6 +328,7 @@ async function runAnalysis() {
             throw new Error(data.detail || `Analysis service returned HTTP ${response.status}.`);
         }
 
+        if (selectedFile !== analysisFile) return;
         currentContractData = normalizeAnalysis(data);
         renderAnalysisResults(currentContractData);
         setAnalysisStatus("Analysis complete. Results are based on the selected document.", "success");
@@ -336,6 +338,7 @@ async function runAnalysis() {
             .scrollIntoView({ behavior: "smooth" });
 
     } catch (error) {
+        if (selectedFile !== analysisFile) return;
         console.error("Analysis error:", error);
         const message = error instanceof TypeError
             ? `Cannot reach the analysis service at ${FASTAPI_URL}. Check the Render service status and confirm CORS allows this page's origin.`
